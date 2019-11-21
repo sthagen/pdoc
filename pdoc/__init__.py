@@ -8,6 +8,7 @@ hierarchical APIs.
 .. include:: ./documentation.md
 """
 import ast
+import enum
 import importlib.machinery
 import importlib.util
 import inspect
@@ -1080,6 +1081,11 @@ class Function(Doc):
         If `annotate` is True, the parameter strings include [PEP 484]
         type hint annotations.
 
+        .. todo::
+            Extract signature from the first lines of currently-unsupported builtin
+            functions' (such as `itertools.count()` or `numpy.array()`) docstrings.
+            See _TODO_ marker in the code for ideas.
+
         [PEP 484]: https://www.python.org/dev/peps/pep-0484/
         """
         return self._params(self.obj, annotate=annotate, link=link, module=self.module)
@@ -1090,24 +1096,32 @@ class Function(Doc):
             signature = inspect.signature(inspect.unwrap(func_obj))
         except ValueError:
             # I guess this is for C builtin functions?
+            # TODO: Extract signature from the first line of the docstring, i.e.
+            # https://github.com/mitmproxy/pdoc/commit/010d996003bc5b72fcf5fa515edbcc0142819919
             return ["..."]
 
         def safe_default_value(p: inspect.Parameter):
-            if p.default is inspect.Parameter.empty:
+            value = p.default
+            if value is inspect.Parameter.empty:
                 return p
 
-            replacement = None
-            if p.default is os.environ:
-                replacement = 'os.environ'
-            elif inspect.isclass(p.default):
-                replacement = p.default.__module__ + '.' + p.default.__qualname__
-            elif ' at 0x' in repr(p.default):
-                replacement = re.sub(r' at 0x\w+', '', repr(p.default))
+            replacement = next((i for i in ('os.environ',
+                                            'sys.stdin',
+                                            'sys.stdout',
+                                            'sys.stderr',)
+                                if value is eval(i)), None)
+            if not replacement:
+                if isinstance(value, enum.Enum):
+                    replacement = str(value)
+                elif inspect.isclass(value):
+                    replacement = value.__module__ + '.' + value.__qualname__
+                elif ' at 0x' in repr(value):
+                    replacement = re.sub(r' at 0x\w+', '', repr(value))
 
-            nonlocal link
-            if link and ('<' in repr(p.default) or '>' in repr(p.default)):
-                import html
-                replacement = html.escape(replacement or p.default)
+                nonlocal link
+                if link and ('<' in repr(value) or '>' in repr(value)):
+                    import html
+                    replacement = html.escape(replacement or repr(value))
 
             if replacement:
                 class mock:
