@@ -111,6 +111,10 @@ class CliTest(unittest.TestCase):
     ]
     PUBLIC_FILES = [f for f in ALL_FILES if '/_' not in f]
 
+    if os.name == 'nt':
+        ALL_FILES = [i.replace('/', '\\') for i in ALL_FILES]
+        PUBLIC_FILES = [i.replace('/', '\\') for i in PUBLIC_FILES]
+
     def setUp(self):
         pdoc.reset()
 
@@ -205,7 +209,7 @@ class CliTest(unittest.TestCase):
     def test_html_identifier(self):
         for package in ('', '._private'):
             with self.subTest(package=package), \
-                 self.assertWarns(UserWarning) as cm:
+                    self.assertWarns(UserWarning) as cm:
                 with run_html(EXAMPLE_MODULE + package, filter='A',
                               config='show_source_code=False'):
                     self._check_files(['A'], ['CONST', 'B docstring'])
@@ -375,6 +379,7 @@ class ApiTest(unittest.TestCase):
     """
     Programmatic/API unit tests.
     """
+
     def setUp(self):
         pdoc.reset()
 
@@ -394,7 +399,7 @@ class ApiTest(unittest.TestCase):
 
     def test_import_filename(self):
         with patch.object(sys, 'path', ['']), \
-             chdir(os.path.join(TESTS_BASEDIR, EXAMPLE_MODULE)):
+                chdir(os.path.join(TESTS_BASEDIR, EXAMPLE_MODULE)):
             pdoc.import_module('index')
 
     def test_imported_once(self):
@@ -494,6 +499,12 @@ class ApiTest(unittest.TestCase):
             self.assertIn('B', mod.doc)
             self.assertNotIn('f', mod.doc['B'].doc)
             self.assertIsInstance(mod.find_ident('B.f'), pdoc.External)
+
+        # GH-125: https://github.com/pdoc3/pdoc/issues/125
+        with patch.object(module, '__pdoc__', {'B.inherited': False}):
+            mod = pdoc.Module(module)
+            pdoc.link_inheritance()
+            self.assertNotIn('inherited', mod.doc['B'].doc)
 
     def test__pdoc__invalid_value(self):
         module = pdoc.import_module(EXAMPLE_MODULE)
@@ -692,6 +703,7 @@ class ApiTest(unittest.TestCase):
 
         class C:
             """foo"""
+
             def __init__(self):
                 """bar"""
 
@@ -719,6 +731,12 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(pdoc.Class('C', mod, C).params(), ['x'])
         with patch.dict(mod.obj.__pdoc__, {'C.__init__': False}):
             self.assertEqual(pdoc.Class('C', mod, C).params(), [])
+
+        # test case for https://github.com/pdoc3/pdoc/issues/124
+        class C2:
+            __signature__ = inspect.signature(lambda a, b, c=None, *, d=1, e: None)
+
+        self.assertEqual(pdoc.Class('C2', mod, C2).params(), ['a', 'b', 'c=None', '*', 'd=1', 'e'])
 
     def test_url(self):
         mod = pdoc.Module(EXAMPLE_MODULE)
@@ -772,6 +790,7 @@ class HtmlHelpersTest(unittest.TestCase):
     """
     Unit tests for helper functions for producing HTML.
     """
+
     def test_minify_css(self):
         css = 'a { color: white; } /*comment*/ b {;}'
         minified = minify_css(css)
@@ -834,7 +853,8 @@ class HtmlHelpersTest(unittest.TestCase):
         toc = extract_toc(text)
         self.assertEqual(toc, expected)
 
-    @unittest.skipIf(shutil.which("git") is None, reason="test assumes git installed on system")
+    @unittest.skipIf(shutil.which("git") is None or not os.path.exists('.git'),
+                     "git not installed or we're not within git repo")
     def test_format_git_link(self):
         url = format_git_link(
             template='https://github.com/pdoc3/pdoc/blob/{commit}/{path}#L{start_line}-L{end_line}',
@@ -1095,6 +1115,7 @@ data:text/plain;base64,SGVsbG8sIFdvcmxkIQ%3D%3D"""
         self.assertEqual(html, expected)
 
 
+@unittest.skipIf('win' in sys.platform, "signal.SIGALRM doesn't work on Windos")
 class HttpTest(unittest.TestCase):
     """
     Unit tests for the HTTP server functionality.
