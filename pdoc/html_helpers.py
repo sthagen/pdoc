@@ -157,6 +157,7 @@ class _ToMarkdown:
         """
         section, body = match.groups()
         if section.title() == 'See Also':
+            body = re.sub(r'\n\s{4}\s*', ' ', body)  # Handle line continuation
             body = re.sub(r'^((?:\n?[\w.]* ?: .*)+)|(.*\w.*)',
                           _ToMarkdown._numpy_seealso, body)
         elif section.title() in ('Returns', 'Yields', 'Raises', 'Warns'):
@@ -166,7 +167,8 @@ class _ToMarkdown:
                           r'(?P<desc>(?:\n(?: {4}.*|$))*)',
                           _ToMarkdown._numpy_params, body, flags=re.MULTILINE)
         else:
-            body = re.sub(r'^(?P<name>\*{0,2}\w+(?:, \*{0,2}\w+)*)'
+            name = r'(?:\w|\{\w+(?:,\w+)+\})+'  # Support curly brace expansion
+            body = re.sub(r'^(?P<name>\*{0,2}' + name + r'(?:, \*{0,2}' + name + r')*)'
                           r'(?: ?: (?P<type>.*))?(?<!\.)$'
                           r'(?P<desc>(?:\n(?: {4}.*|$))*)',
                           _ToMarkdown._numpy_params, body, flags=re.MULTILINE)
