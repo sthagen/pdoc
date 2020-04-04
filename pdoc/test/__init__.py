@@ -402,6 +402,15 @@ class ApiTest(unittest.TestCase):
                     self.assertEqual(sorted(m.name for m in m.submodules()),
                                      [EXAMPLE_MODULE + '.' + m for m in submodules])
 
+    def test_Module_find_class(self):
+        class A:
+            __module__ = None
+
+        assert A.__module__ is None
+        mod = pdoc.Module(pdoc)
+        self.assertIsInstance(mod.find_class(pdoc.Doc), pdoc.Class)
+        self.assertIsInstance(mod.find_class(A), pdoc.External)
+
     def test_import_filename(self):
         with patch.object(sys, 'path', ['']), \
                 chdir(os.path.join(TESTS_BASEDIR, EXAMPLE_MODULE)):
@@ -717,6 +726,19 @@ class ApiTest(unittest.TestCase):
         def f() -> typing.List[typing.Union[str, pdoc.Doc]]: pass
         func = pdoc.Function('f', pdoc.Module(pdoc), f)
         self.assertEqual(func.return_annotation(), 'List[Union[str,\N{NBSP}pdoc.Doc]]')
+
+    @ignore_warnings
+    def test_Variable_type_annotation(self):
+        import typing
+
+        class Foobar:
+            @property
+            def prop(self) -> typing.Optional[int]:
+                pass
+
+        cls = pdoc.Class('Foobar', pdoc.Module(pdoc), Foobar)
+        prop = cls.instance_variables()[0]
+        self.assertEqual(prop.type_annotation(), 'Union[int,\N{NBSP}NoneType]')
 
     @ignore_warnings
     def test_Class_docstring(self):
@@ -1047,8 +1069,9 @@ that are relevant to the interface.</p>
 </dl>
 <h2 id="examples">Examples</h2>
 <p>Examples in doctest format.</p>
-<pre><code>&gt;&gt;&gt; a = [1,2,3]
+<pre><code class="python">&gt;&gt;&gt; a = [1,2,3]
 </code></pre>
+
 <h2 id="todos">Todos</h2>
 <ul>
 <li>For module TODOs</li>
@@ -1060,16 +1083,33 @@ that are relevant to the interface.</p>
     def test_doctests(self):
         expected = '''<p>Need an intro paragrapgh.</p>
 <pre><code>&gt;&gt;&gt; Then code is indented one level
+line1
+line2
 </code></pre>
 <p>Alternatively</p>
-<pre><code>fenced code works
+<pre><code>&gt;&gt;&gt; doctest
+fenced code works
+always
 </code></pre>
 
 <h2 id="examples">Examples</h2>
-<pre><code>&gt;&gt;&gt; nbytes(100)
+<pre><code class="python">&gt;&gt;&gt; nbytes(100)
 '100.0 bytes'
+line2
+</code></pre>
 
-&gt;&gt;&gt; asdf
+<p>some text</p>
+<p>some text</p>
+<pre><code class="python">&gt;&gt;&gt; another doctest
+line1
+line2
+</code></pre>
+
+<h2 id="example">Example</h2>
+<pre><code class="python">&gt;&gt;&gt; f()
+Traceback (most recent call last):
+    ...
+Exception: something went wrong
 </code></pre>'''
         text = inspect.getdoc(self._docmodule.doctests)
         html = to_html(text, module=self._module, link=self._link)

@@ -39,6 +39,9 @@ _URL_MODULE_SUFFIX = '.html'
 _URL_INDEX_MODULE_SUFFIX = '.m.html'  # For modules named literal 'index'
 _URL_PACKAGE_SUFFIX = '/index.html'
 
+# type.__module__ can be None by the Python spec. In those cases, use this value
+_UNKNOWN_MODULE = '?'
+
 T = TypeVar('T', bound='Doc')
 
 __pdoc__ = {}  # type: Dict[str, Union[bool, str]]
@@ -329,6 +332,23 @@ def _toposort(graph: Dict[T, Set[T]]) -> Generator[T, None, None]:
     assert not graph, "A cyclic dependency exists amongst %r" % graph
 
 
+def _return_annotation(name, module, obj, link=None):
+    try:
+        annot = typing.get_type_hints(obj).get('return', '')
+    except NameError as e:
+        warn("Error handling return annotation for {}: {}".format(name, e.args[0]))
+        annot = inspect.signature(inspect.unwrap(obj)).return_annotation
+        if annot == inspect.Parameter.empty:
+            annot = ''
+    if not annot:
+        return ''
+    s = inspect.formatannotation(annot).replace(' ', '\N{NBSP}')  # Better line breaks
+    if link:
+        from pdoc.html_helpers import _linkify
+        s = re.sub(r'[\w\.]+', partial(_linkify, link=link, module=module), s)
+    return s
+
+
 def link_inheritance(context: Context = None):
     """
     Link inheritance relationsships between `pdoc.Class` objects
@@ -553,7 +573,7 @@ class Module(Doc):
                          "exported in `__all__`".format(self.module, name))
         else:
             def is_from_this_module(obj):
-                mod = inspect.getmodule(obj)
+                mod = inspect.getmodule(inspect.unwrap(obj))
                 return mod is None or mod.__name__ == self.obj.__name__
 
             public_objs = [(name, inspect.unwrap(obj))
@@ -726,7 +746,7 @@ class Module(Doc):
         # XXX: Is this corrent? Does it always match
         # `Class.module.name + Class.qualname`?. Especially now?
         # If not, see what was here before.
-        return self.find_ident(cls.__module__ + '.' + cls.__qualname__)
+        return self.find_ident((cls.__module__ or _UNKNOWN_MODULE) + '.' + cls.__qualname__)
 
     def find_ident(self, name: str) -> Doc:
         """
@@ -1073,20 +1093,7 @@ class Function(Doc):
 
     def return_annotation(self, *, link=None):
         """Formatted function return type annotation or empty string if none."""
-        try:
-            annot = typing.get_type_hints(self.obj).get('return', '')
-        except NameError as e:
-            warn("Error handling return annotation for {}: {}".format(self.name, e.args[0]))
-            annot = inspect.signature(inspect.unwrap(self.obj)).return_annotation
-            if annot == inspect.Parameter.empty:
-                annot = ''
-        if not annot:
-            return ''
-        s = inspect.formatannotation(annot).replace(' ', '\N{NBSP}')  # Better line breaks
-        if link:
-            from pdoc.html_helpers import _linkify
-            s = re.sub(r'[\w\.]+', partial(_linkify, link=link, module=self.module), s)
-        return s
+        return _return_annotation(self.name, self.module, self.obj, link=link)
 
     def params(self, *, annotate: bool = False, link: Callable[[Doc], str] = None) -> List[str]:
         """
@@ -1131,7 +1138,7 @@ class Function(Doc):
                 if isinstance(value, enum.Enum):
                     replacement = str(value)
                 elif inspect.isclass(value):
-                    replacement = value.__module__ + '.' + value.__qualname__
+                    replacement = (value.__module__ or _UNKNOWN_MODULE) + '.' + value.__qualname__
                 elif ' at 0x' in repr(value):
                     replacement = re.sub(r' at 0x\w+', '', repr(value))
 
@@ -1231,6 +1238,10 @@ class Variable(Doc):
     @property
     def refname(self):
         return (self.cls.refname if self.cls else self.module.refname) + '.' + self.name
+
+    def type_annotation(self, *, link=None):
+        """Formatted variable type annotation or empty string if none."""
+        return _return_annotation(self.name, self.module, self.obj, link=link)
 
 
 class External(Doc):
