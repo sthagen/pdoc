@@ -19,6 +19,9 @@
     padding: 30px;
     overflow: hidden;
   }
+    #sidebar > *:last-child {
+      margin-bottom: 2cm;
+    }
 
   .http-server-breadcrumbs {
     font-size: 130%;
@@ -129,10 +132,8 @@
       padding: 0;
     }
     #index h4 {
+      margin-top: .6em;
       font-weight: bold;
-    }
-    #index h4 + ul {
-      margin-bottom:.6em;
     }
     /* Make TOC lists have 2+ columns when viewport is wide enough.
        Assuming ~20-character identifiers and ~30% wide sidebar. */
@@ -276,6 +277,10 @@
   @media screen and (min-width: 700px) {
     #sidebar {
       width: 30%;
+      height: 100vh;
+      overflow: auto;
+      position: sticky;
+      top: 0;
     }
     #content {
       width: 70%;

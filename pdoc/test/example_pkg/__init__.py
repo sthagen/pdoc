@@ -24,6 +24,10 @@ def object_as_arg_default(*args, a=object(), **kwargs):
     """Html-encodes angle brackets in params"""
 
 
+def _private_function():
+    """Private function, should only appear if whitelisted"""
+
+
 class A:
     """`A` is base class for `example_pkg.B`."""  # Test refname link
     def overridden(self):
@@ -34,6 +38,9 @@ class A:
 
     def inherited(self):  # Inherited in B
         """A.inherited docstring"""
+
+    def __call__(self):
+        """A.__call__ docstring. Only shown when whitelisted"""
 
 
 non_callable_routine = staticmethod(lambda x: 2)  # Not interpreted as Function; skipped
@@ -149,17 +156,16 @@ class Docformats:
             Description of num
         *args, **kwargs
             Passed on.
+        complex : Union[Set[pdoc.Doc, Function], pdoc]
+            The `List[Doc]`s of the new signal.
 
         Returns
         -------
         output : pdoc.Doc
             The output array
-        foo
-
-        Returns
-        -------
-        pdoc.Doc
+        List[pdoc.Doc]
             The output array
+        foo
 
         Raises
         ------
@@ -223,6 +229,9 @@ class Docformats:
             issue_10: description didn't work across multiple lines
                 if only a single item was listed. `inspect.cleandoc()`
                 somehow stripped the required extra indentation.
+
+        Returns:
+            Dict[int, pdoc.Doc]: Description.
 
         Raises:
             AttributeError: The ``Raises`` section is a list of all exceptions

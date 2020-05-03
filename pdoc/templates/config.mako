@@ -11,7 +11,7 @@
     extract_module_toc_into_sidebar = True
     list_class_variables_in_index = True
     sort_identifiers = True
-    show_type_annotations = False
+    show_type_annotations = True
 
     # Show collapsed source code block next to each item.
     # Disabling this can improve rendering speed of large modules.
@@ -41,6 +41,12 @@
     # If set, insert Google Analytics tracking code. Value is GA
     # tracking id (UA-XXXXXX-Y).
     google_analytics = ''
+
+    # If set, insert Google Custom Search search bar widget above the sidebar index.
+    # The whitespace-separated tokens represent arbitrary extra queries (at least one
+    # must match) passed to regular Google search. Example:
+    #search_query = 'inurl:github.com/USER/PROJECT  site:PROJECT.github.io  site:PROJECT.website'
+    search_query = ''
 
     # If set, render LaTeX math syntax within \(...\) (inline equations),
     # or within \[...\] or $$...$$ or `.. math::` (block equations)

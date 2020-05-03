@@ -5,17 +5,24 @@
   from pdoc.html_helpers import extract_toc, glimpse, to_html as _to_html, format_git_link
 
 
-  def link(d, name=None, fmt='{}'):
-    name = fmt.format(name or d.qualname + ('()' if isinstance(d, pdoc.Function) else ''))
-    if not isinstance(d, pdoc.Doc) or isinstance(d, pdoc.External) and not external_links:
+  def link(dobj: pdoc.Doc, name=None):
+    name = name or dobj.qualname + ('()' if isinstance(dobj, pdoc.Function) else '')
+    if isinstance(dobj, pdoc.External) and not external_links:
         return name
-    url = d.url(relative_to=module, link_prefix=link_prefix,
-                top_ancestor=not show_inherited_members)
-    return '<a title="{}" href="{}">{}</a>'.format(d.refname, url, name)
+    url = dobj.url(relative_to=module, link_prefix=link_prefix,
+                   top_ancestor=not show_inherited_members)
+    return '<a title="{}" href="{}">{}</a>'.format(dobj.refname, url, name)
 
 
   def to_html(text):
-    return _to_html(text, module=module, link=link, latex_math=latex_math)
+    return _to_html(text, docformat=docformat, module=module, link=link, latex_math=latex_math)
+
+
+  def get_annotation(bound_method, sep=':'):
+    annot = show_type_annotations and bound_method(link=link) or ''
+    if annot:
+        annot = ' ' + sep + '\N{NBSP}' + annot
+    return annot
 %>
 
 <%def name="ident(name)"><span class="ident">${name}</span></%def>
@@ -54,7 +61,7 @@
           % endif
       </p>
   % endif
-  <section class="desc${inherits}">${docstring | to_html}</section>
+  <div class="desc${inherits}">${docstring | to_html}</div>
   % if not isinstance(d, pdoc.Module):
   ${show_source(d)}
   % endif
@@ -100,11 +107,9 @@
     <dt id="${f.refname}"><code class="name flex">
         <%
             params = ', '.join(f.params(annotate=show_type_annotations, link=link))
-            returns = show_type_annotations and f.return_annotation(link=link) or ''
-            if returns:
-                returns = ' ->\N{NBSP}' + returns
+            return_type = get_annotation(f.return_annotation, '->')
         %>
-        <span>${f.funcdef()} ${ident(f.name)}</span>(<span>${params})${returns}</span>
+        <span>${f.funcdef()} ${ident(f.name)}</span>(<span>${params})${return_type}</span>
     </code></dt>
     <dd>${show_desc(f)}</dd>
   </%def>
@@ -120,7 +125,9 @@
       % endfor
     </nav>
   % endif
-  <h1 class="title">${'Namespace' if module.is_namespace else 'Module'} <code>${module.name}</code></h1>
+  <h1 class="title">${'Namespace' if module.is_namespace else  \
+                      'Package' if module.is_package and not module.supermodule else \
+                      'Module'} <code>${module.name}</code></h1>
   </header>
 
   <section id="section-intro">
@@ -145,7 +152,8 @@
     <h2 class="section-title" id="header-variables">Global variables</h2>
     <dl>
     % for v in variables:
-      <dt id="${v.refname}"><code class="name">var ${ident(v.name)}</code></dt>
+      <% return_type = get_annotation(v.type_annotation) %>
+      <dt id="${v.refname}"><code class="name">var ${ident(v.name)}${return_type}</code></dt>
       <dd>${show_desc(v)}</dd>
     % endfor
     </dl>
@@ -207,7 +215,8 @@
           <h3>Class variables</h3>
           <dl>
           % for v in class_vars:
-              <dt id="${v.refname}"><code class="name">var ${ident(v.name)}</code></dt>
+              <% return_type = get_annotation(v.type_annotation) %>
+              <dt id="${v.refname}"><code class="name">var ${ident(v.name)}${return_type}</code></dt>
               <dd>${show_desc(v)}</dd>
           % endfor
           </dl>
@@ -224,12 +233,8 @@
           <h3>Instance variables</h3>
           <dl>
           % for v in inst_vars:
-              <%
-                  var_type = show_type_annotations and v.type_annotation(link=link) or ''
-                  if var_type:
-                      var_type = ' ->\N{NBSP}' + var_type
-              %>
-              <dt id="${v.refname}"><code class="name">var ${ident(v.name)}${var_type}</code></dt>
+              <% return_type = get_annotation(v.type_annotation) %>
+              <dt id="${v.refname}"><code class="name">var ${ident(v.name)}${return_type}</code></dt>
               <dd>${show_desc(v)}</dd>
           % endfor
           </dl>
@@ -282,6 +287,13 @@
   <nav id="sidebar">
 
     <%include file="logo.mako"/>
+
+    % if search_query:
+        <div class="gcse-search" style="height: 70px"
+             data-as_oq="${' '.join(search_query.strip().split()) | h }"
+             data-gaCategoryParameter="${module.refname | h}">
+        </div>
+    % endif
 
     <h1>Index</h1>
     ${extract_toc(module.docstring) if extract_module_toc_into_sidebar else ''}
@@ -380,6 +392,11 @@
     window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
     ga('create', '${google_analytics}', 'auto'); ga('send', 'pageview');
     </script><script async src='https://www.google-analytics.com/analytics.js'></script>
+  % endif
+
+  % if search_query:
+    <script async src="https://cse.google.com/cse.js?cx=017837193012385208679:pey8ky8gdqw"></script>
+    <style>.gsc-control-cse {padding:0 !important;margin-top:1em}</style>
   % endif
 
   % if latex_math:
